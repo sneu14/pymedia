@@ -196,7 +196,7 @@ class MQTTMediaPlayer:
     def disconnect(self):
         """Verbindung zum MQTT Broker trennen"""
         self.stop_playback()
-        self.client.loop_stop()
+        #self.client.loop_stop()
         self.client.disconnect()
         logger.info("MQTT-Verbindung getrennt")
 
