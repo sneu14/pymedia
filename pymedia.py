@@ -153,7 +153,11 @@ class MQTTMediaPlayer:
             
     def control_seek(self, seconds):
         """Zu Zeitstempel springen"""
-        self._send_mpv_command({"command": ["seek", seconds, "absolute"]})
+        try:
+            t = float(seconds)
+            self._send_mpv_command({"command": ["seek", t, "absolute"]})
+        except:
+            logger.warning("Zeitstempel für Seek ungültig: " + seconds + " Fließkommazahl erwartet")
 
             
     def _send_mpv_command(self, command):
