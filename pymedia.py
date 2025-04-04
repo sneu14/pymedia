@@ -86,7 +86,6 @@ class MQTTMediaPlayer:
     def on_connect(self, client, userdata, flags, rc, properties=None):
         """Callback-Funktion bei erfolgreicher Verbindung"""
         logger.info(f"Verbunden mit Ergebniscode {rc}")
-        # Topics abonnieren
         
         logger.info("Abonniere URL-Topics")
         for x in self.url_topics:
@@ -103,7 +102,6 @@ class MQTTMediaPlayer:
             client.subscribe(x)
             logger.info("   " + x)
 
-        
     def on_message(self, client, userdata, msg, properties=None):
         """Callback-Funktion bei eingehenden MQTT-Nachrichten"""
         topic = msg.topic
@@ -263,34 +261,36 @@ if __name__ == "__main__":
             player.setMode(config['General']['Mode'])
         except:
             logger.info("Starte im Modus: Video")
-            
-        try:
-            player.setMonitor(config['General']['Monitor'])
-        except:
-            logger.info("Verwende Monitor 0")
         
         try:
             player.mqtt_user_pw_set(config['Connection']['Username'], config['Connection']['Password'])
         except:
             logger.info("Keine Zugangsdaten für MQTT-Broker gesetzt")
-        
+
+        monitor = 0
+        try:
+            monitor = config['General']['Monitor']
+            player.setMonitor(monitor)
+        except:
+            logger.info("Verwende Monitor 0")        
+
         section = "URL-Topics"
         if config.has_section(section):
             player.clearURLTopics()    
             for x in dict(config.items(section)):
-                player.addURLTopic(replaceVars(config[section][x], config['General']['Monitor']))
+                player.addURLTopic(replaceVars(config[section][x], monitor))
         
         section = "Control-Topics"
         if config.has_section(section):
             player.clearControlTopics()      
             for x in dict(config.items(section)):
-                player.addControlTopic(replaceVars(config[section][x], config['General']['Monitor']))
+                player.addControlTopic(replaceVars(config[section][x], monitor))
         
         section = "Seek-Topics"
         if config.has_section(section):
             player.clearSeekTopics()       
             for x in dict(config.items(section)):
-                player.addSeekTopic(replaceVars(config[section][x], config['General']['Monitor']))
+                player.addSeekTopic(replaceVars(config[section][x], monitor))
         
         player.connect()
         
