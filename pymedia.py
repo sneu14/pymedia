@@ -13,25 +13,20 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class MQTTMediaPlayer:
-    def __init__(self, mode, broker_address="localhost", broker_port=1883, username="", password="", state_topic="video/state", url_topic1 = "", url_topic2 = "", control1_topic = "", control2_topic = "", seek1_topic = "", seek2_topic= ""):
+    def __init__(self, broker_address="localhost", broker_port=1883):
         
         #MQTT Broker Verbindungsdetails
-        self.mode = mode
+        self.mode = "video"
+        self.monitor = 0
         self.broker_address = broker_address
         self.broker_port = broker_port
-        self.state_topic = state_topic
-        self.url_topic1 = url_topic1
-        self.url_topic2 = url_topic2
-        self.control1_topic = control1_topic
-        self.control2_topic = control2_topic
-        self.seek1_topic = seek1_topic
-        self.seek2_topic = seek2_topic
-        self.username = username
-        self.password = password
+        self.state_topic = self.mode + "/" + socket.gethostname() + "/state"
+        self.url_topics = [ self.mode + "/" + socket.gethostname() + "/url", self.mode + "/all/url" ]
+        self.control_topics = [ self.mode + "/" + socket.gethostname() + "/control", self.mode + "/all/control" ]
+        self.seek_topics = [ self.mode + "/" + socket.gethostname() + "/seek", self.mode + "/all/seek" ]
         
         # MQTT Client mit aktueller API-Version initialisieren
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        self.client.username_pw_set(self.username, self.password)
         self.client.will_set(self.state_topic, payload="offline",qos=0, retain=True)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
@@ -43,8 +38,41 @@ class MQTTMediaPlayer:
         self.current_process = None
         self.is_playing = False
         self.current_url = None
- 
         
+        
+    def setMode(self, mode):
+        if mode == "audio" or mode == "video":
+            self.mode = mode
+        else:
+            logger.warn("Ungültiger Betriebsmodus. Nur Audio oder Video möglich")
+        
+    def setMonitor(self, m):
+        try:
+            self.monitor = int(m)
+        except:
+            logger.warn("Ungültige Monitor ID: " + m)
+            
+    def mqtt_user_pw_set(self, u,p):
+        self.client.username_pw_set(u,p)
+        
+    def addURLTopic(self, t):
+        self.url_topics.append(t)
+        
+    def clearURLTopics(self):
+        self.url_topics = []
+        
+    def addControlTopic(self, t):
+        self.control_topics.append(t)
+    
+    def clearControlTopics(self):
+        self.control_topics = []
+
+    def addSeekTopic(self, t):
+        self.seek_topics.append(t)
+        
+    def clearSeekTopics(self):
+        self.seek_topics = []
+    
     def connect(self):
         """Verbindung zum MQTT Broker herstellen"""
         try:
@@ -59,18 +87,22 @@ class MQTTMediaPlayer:
         """Callback-Funktion bei erfolgreicher Verbindung"""
         logger.info(f"Verbunden mit Ergebniscode {rc}")
         # Topics abonnieren
-        client.subscribe(self.url_topic1)
-        logger.info("Abonniert für: " + self.url_topic1)
-        client.subscribe(self.url_topic2)
-        logger.info("Abonniert für: " + self.url_topic2)
-        client.subscribe(self.control1_topic)
-        logger.info("Abonniert für: " + self.control1_topic)
-        client.subscribe(self.control2_topic)
-        logger.info("Abonniert für: " + self.control2_topic)
-        client.subscribe(self.seek1_topic)
-        logger.info("Abonniert für: " + self.seek1_topic)
-        client.subscribe(self.seek2_topic)
-        logger.info("Abonniert für: " + self.seek2_topic)
+        
+        logger.info("Abonniere URL-Topics")
+        for x in self.url_topics:
+            client.subscribe(x)
+            logger.info("   " + x)
+            
+        logger.info("Abonniere Control-Topics")
+        for x in self.control_topics:
+            client.subscribe(x)
+            logger.info("   " + x)
+        
+        logger.info("Abonniere Seek-Topics")
+        for x in self.seek_topics:
+            client.subscribe(x)
+            logger.info("   " + x)
+
         
     def on_message(self, client, userdata, msg, properties=None):
         """Callback-Funktion bei eingehenden MQTT-Nachrichten"""
@@ -78,11 +110,12 @@ class MQTTMediaPlayer:
         payload = msg.payload.decode('utf-8')
         logger.info(f"Nachricht empfangen auf {topic}: {payload}")
         
-        if topic == self.url_topic1 or topic == self.url_topic2:
+        #if topic == self.url_topic1 or topic == self.url_topic2:
+        if topic in self.url_topics:
             self.play_url(payload)
-        if topic == self.control1_topic or topic == self.control2_topic:
+        if topic in self.control_topics:
             self.control_playback(payload)
-        if topic == self.seek1_topic or topic == self.seek2_topic:
+        if topic in self.seek_topics:
             self.control_seek(payload)
     
     def play_url(self, url):
@@ -95,9 +128,10 @@ class MQTTMediaPlayer:
             # Starte die neue Wiedergabe mit mpv (auch als Stream)
             self.current_url = url
             logger.info("Mode: " + self.mode)
-            if self.mode == "Video":
+            if self.mode == "video":
                 cmd = ["mpv", "--no-terminal",
                        "--fs",
+                       f"--screen={self.monitor}",
                        "--no-osc",
                        "--no-input-cursor",
                        f"--input-ipc-server={self.ipc_socket}",
@@ -200,32 +234,68 @@ class MQTTMediaPlayer:
         self.client.disconnect()
         logger.info("MQTT-Verbindung getrennt")
 
+def replaceVars(value, mvalue):
+    return value.replace("___HOSTNAME___",socket.gethostname()).replace("___MONITOR___",mvalue)
+
 if __name__ == "__main__":
     try:
-        configFile = sys.argv[1]
-        #configFile = "config_video.ini"
+        configFile = "config.ini"
+        if len(sys.argv) == 2:
+            configFile = sys.argv[1]
+
         config = configparser.ConfigParser()
+        logger.info("Verwende Configdatei: " + configFile)
         config.read(configFile)
-        # MQTT Broker-Einstellungen (ändern nach Bedarf)
-        BROKER_ADDRESS = config['Connection']['Broker']  # Lokaler Broker
-        BROKER_PORT = int(config['Connection']['Port'])            # Standardport
-        TOPIC2 = config['Topics']['URL-Topic1'].replace("___HOSTNAME___",socket.gethostname())
-        TOPIC1 = config['Topics']['URL-Topic2'].replace("___HOSTNAME___",socket.gethostname())
-        STATE_TOPIC = config['Topics']['State'].replace("___HOSTNAME___",socket.gethostname())
-        CONTROL1_TOPIC = config['Topics']['Control1'].replace("___HOSTNAME___",socket.gethostname())
-        CONTROL2_TOPIC = config['Topics']['Control2'].replace("___HOSTNAME___",socket.gethostname())
-        SEEK1_TOPIC = config['Topics']['Seek1'].replace("___HOSTNAME___",socket.gethostname())
-        SEEK2_TOPIC = config['Topics']['Seek2'].replace("___HOSTNAME___",socket.gethostname())
-        USERNAME = config['Connection']['Username']
-        PASSWORD = config['Connection']['Password']
-        MODE = config['General']['Mode']   
+            
+        try:
+            BROKER_ADDRESS = config['Connection']['Broker']
+        except:
+            BROKER_ADDRESS = "localhost"
         
-        # Audio Player starten
-        player = MQTTMediaPlayer(MODE, BROKER_ADDRESS, BROKER_PORT, USERNAME, PASSWORD, STATE_TOPIC, TOPIC1, TOPIC2, CONTROL1_TOPIC, CONTROL2_TOPIC, SEEK1_TOPIC, SEEK2_TOPIC)
+        try:
+            BROKER_PORT = int(config['Connection']['Port'])
+        except:
+            BROKER_PORT = 1883
+            
+ 
+        player = MQTTMediaPlayer(BROKER_ADDRESS, BROKER_PORT)
+        try:
+            player.setMode(config['General']['Mode'])
+        except:
+            logger.info("Starte im Modus: Video")
+            
+        try:
+            player.setMonitor(config['General']['Monitor'])
+        except:
+            logger.info("Verwende Monitor 0")
+        
+        try:
+            player.mqtt_user_pw_set(config['Connection']['Username'], config['Connection']['Password'])
+        except:
+            logger.info("Keine Zugangsdaten für MQTT-Broker gesetzt")
+        
+        section = "URL-Topics"
+        if config.has_section(section):
+            player.clearURLTopics()    
+            for x in dict(config.items(section)):
+                player.addURLTopic(replaceVars(config[section][x], config['General']['Monitor']))
+        
+        section = "Control-Topics"
+        if config.has_section(section):
+            player.clearControlTopics()      
+            for x in dict(config.items(section)):
+                player.addControlTopic(replaceVars(config[section][x], config['General']['Monitor']))
+        
+        section = "Seek-Topics"
+        if config.has_section(section):
+            player.clearSeekTopics()       
+            for x in dict(config.items(section)):
+                player.addSeekTopic(replaceVars(config[section][x], config['General']['Monitor']))
+        
         player.connect()
         
         # Endlosschleife um das Programm am Laufen zu halten
-        logger.info("Audio Player gestartet und wartet auf MQTT-Nachrichten...")
+        logger.info("Player gestartet und wartet auf MQTT-Nachrichten...")
         try:
             while True:
                 time.sleep(1)
@@ -233,8 +303,10 @@ if __name__ == "__main__":
             logger.info("Programm durch Benutzer beendet")
     
     except Exception as e:
-        logger.error(f"Unerwarteter Fehler: {e}")
+        logger.error(f"Unerwarteter Fehler: {e.with_traceback()}")
     finally:
         # Aufräumen
         if 'player' in locals():
             player.disconnect()
+            
+

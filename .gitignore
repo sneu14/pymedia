@@ -1,3 +1,6 @@
 /.venv
 audio.log
 video.log
+config_video_monitor0.ini
+config_video_monitor1.ini
+config_audio.ini
