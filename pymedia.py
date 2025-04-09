@@ -7,10 +7,25 @@ import socket
 import os
 import sys
 import json
+import threading
 
 # Logging einrichten
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def popenAndCall(onExit, *popenArgs, **popenKWArgs):
+
+    proc = subprocess.Popen(*popenArgs, **popenKWArgs)
+    def runInThread(onExit, proc):
+        proc.wait()
+        onExit()
+        return
+
+    thread = threading.Thread(target=runInThread,
+                            args=(onExit, proc))
+    thread.start()
+
+    return proc
 
 class MQTTMediaPlayer:
     def __init__(self, broker_address="localhost", broker_port=1883):
@@ -18,16 +33,21 @@ class MQTTMediaPlayer:
         #MQTT Broker Verbindungsdetails
         self.mode = "video"
         self.monitor = 0
+        self.volume = 100
+        self.speed = 1
         self.broker_address = broker_address
         self.broker_port = broker_port
-        self.state_topic = self.mode + "/" + socket.gethostname() + "/state"
+        self.playerstate_topic = self.mode + "/" + socket.gethostname() + "/player_state"
+        self.instancestate_topic = self.mode + "/" + socket.gethostname() + "/instance_state"
         self.url_topics = [ self.mode + "/" + socket.gethostname() + "/url", self.mode + "/all/url" ]
         self.control_topics = [ self.mode + "/" + socket.gethostname() + "/control", self.mode + "/all/control" ]
         self.seek_topics = [ self.mode + "/" + socket.gethostname() + "/seek", self.mode + "/all/seek" ]
+        self.volume_topics = [ self.mode + "/" + socket.gethostname() + "/volume", self.mode + "/all/volume" ]
+        self.speed_topics = [ self.mode + "/" + socket.gethostname() + "/speed", self.mode + "/all/speed" ]
         
         # MQTT Client mit aktueller API-Version initialisieren
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        self.client.will_set(self.state_topic, payload="offline",qos=0, retain=True)
+        self.client.will_set(self.instancestate_topic, payload="offline",qos=0, retain=True)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
         
@@ -37,8 +57,8 @@ class MQTTMediaPlayer:
         # Audio-Player Status
         self.current_process = None
         self.is_playing = False
-        self.current_url = None
-        
+        self.is_paused = False
+        self.current_url = None        
         
     def setMode(self, mode):
         if mode == "audio" or mode == "video":
@@ -72,12 +92,35 @@ class MQTTMediaPlayer:
         
     def clearSeekTopics(self):
         self.seek_topics = []
+        
+    def addVolumeTopic(self, t):
+        self.volume_topics.append(t)
+
+    def clearVolumeTopics(self):
+        self.volume_topics = []
+        
+    def addSpeedTopic(self, t):
+        self.speed_topics.append(t)
+
+    def clearSpeedTopics(self):
+        self.speed_topics = []
+        
+    def setPlayerStateTopic(self, t):
+        self.playerstate_topic = t
+        logger.info("Topic für Playerstatus: " + t)
+ 
+    def setInstanceStateTopic(self, t):
+        self.instancestate_topic = t
+        logger.info("Topic für Instanzstatus: " + t)
+        self.client.will_set(self.instancestate_topic, payload="offline",qos=0, retain=True)
+ 
     
     def connect(self):
         """Verbindung zum MQTT Broker herstellen"""
         try:
             self.client.connect(self.broker_address, self.broker_port, 60)
-            self.client.publish(self.state_topic,"online",0,True)
+            self.client.publish(self.instancestate_topic,"online",0,True)
+            self.client.publish(self.playerstate_topic,"stopped",0,True)
             self.client.loop_start()
             logger.info(f"Verbindung zum MQTT Broker {self.broker_address}:{self.broker_port} hergestellt")
         except Exception as e:
@@ -102,6 +145,17 @@ class MQTTMediaPlayer:
             client.subscribe(x)
             logger.info("   " + x)
 
+        logger.info("Abonniere Volume-Topics")
+        for x in self.volume_topics:
+            client.subscribe(x)
+            logger.info("   " + x)
+            
+        logger.info("Abonniere Speed-Topics")
+        for x in self.speed_topics:
+            client.subscribe(x)
+            logger.info("   " + x)
+
+
     def on_message(self, client, userdata, msg, properties=None):
         """Callback-Funktion bei eingehenden MQTT-Nachrichten"""
         topic = msg.topic
@@ -115,6 +169,15 @@ class MQTTMediaPlayer:
             self.control_playback(payload)
         if topic in self.seek_topics:
             self.control_seek(payload)
+        if topic in self.volume_topics:
+            self.control_volume(payload)
+        if topic in self.speed_topics:
+            self.control_speed(payload)
+    
+    def onPlayerExit(self):
+        self.is_paused = False
+        self.is_playing = False
+        self.client.publish(self.playerstate_topic, "stopped",0,True)
     
     def play_url(self, url):
         """Audio-URL mit mpv abspielen"""
@@ -126,33 +189,37 @@ class MQTTMediaPlayer:
             # Starte die neue Wiedergabe mit mpv (auch als Stream)
             self.current_url = url
             logger.info("Mode: " + self.mode)
+            cmd = ""
             if self.mode == "video":
                 cmd = ["mpv", "--no-terminal",
                        "--fs",
                        f"--screen={self.monitor}",
                        "--no-osc",
                        "--no-input-cursor",
+                       f"--volume={self.volume}",
+                       f"--speed={self.speed}",
                        f"--input-ipc-server={self.ipc_socket}",
                        url]
-                self.current_process = subprocess.Popen(
-                    cmd, 
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE
-                )
+
             else:
                 cmd = ["mpv",
                        "--no-terminal",
                        "--no-video",
+                       f"--volume={self.volume}",
+                       f"--speed={self.speed}",
                        f"--input-ipc-server={self.ipc_socket}",
                        url]
-                self.current_process = subprocess.Popen(
-                    cmd, 
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE
-                )
+
+            logger.info(f"Starte Wiedergabe von: {url}     {cmd}")
+            #logger.info(cmd)
+            self.current_process = popenAndCall(self.onPlayerExit,
+                cmd, 
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
             self.is_playing = True
-            self.client.publish(self.state_topic, "playing",0,True)
-            logger.info(f"Starte Wiedergabe von: {url}")
+            self.client.publish(self.playerstate_topic, "playing",0,True)
+            
             
             time.sleep(0.5)
         except Exception as e:
@@ -169,17 +236,19 @@ class MQTTMediaPlayer:
                 # Pause an mpv senden (SIGTSTP)
                 self._send_mpv_command({"command": ["set_property", "pause", True]})
                 self.is_playing = False
-                self.client.publish(self.state_topic, "paused",0,True)
+                self.is_paused = True
+                self.client.publish(self.playerstate_topic, "paused",0,True)
                 logger.info("Wiedergabe pausiert")
         elif command == "play":
             if not self.is_playing:
                 self._send_mpv_command({"command": ["set_property", "pause", False]})
                 self.is_playing = True
-                self.client.publish(self.state_topic, "playing",0,True)
+                self.is_paused = False
+                self.client.publish(self.playerstate_topic, "playing",0,True)
                 logger.info("Wiedergabe fortgesetzt")
         elif command == "stop":
             self.stop_playback()
-            self.client.publish(self.state_topic, "stopped",0,True)
+            self.client.publish(self.playerstate_topic, "stopped",0,True)
         else:
             logger.warning(f"Unbekanntes Kommando: {command}")
             
@@ -190,6 +259,26 @@ class MQTTMediaPlayer:
             self._send_mpv_command({"command": ["seek", t, "absolute"]})
         except:
             logger.warning("Zeitstempel für Seek ungültig: " + seconds + " Fließkommazahl erwartet")
+
+    def control_volume(self, volume):
+        """Laustärke setzen"""
+        try:
+            t = float(volume)
+            if self.is_playing or self.is_paused:
+                self._send_mpv_command({"command": ["set_property", "volume", volume]})
+            self.volume = volume
+        except:
+            logger.warning("Wert für Volume ungültig: " + volume + " Fließkommazahl erwartet")
+            
+    def control_speed(self, speed):
+        """Geschwindigkeit setzen"""
+        try:
+            t = float(speed)
+            if self.is_playing or self.is_paused:
+                self._send_mpv_command({"command": ["set_property", "speed", speed]})
+            self.volume = speed
+        except:
+            logger.warning("Wert für Geschwindigkeit ungültig: " + speed + " Fließkommazahl erwartet")
 
             
     def _send_mpv_command(self, command):
@@ -223,6 +312,7 @@ class MQTTMediaPlayer:
                 self.current_process.kill()
             self.current_process = None
             self.is_playing = False
+            self.client.publish(self.playerstate_topic, "stopped",0,True)
             logger.info("Wiedergabe gestoppt")
     
     def disconnect(self):
@@ -238,7 +328,7 @@ def replaceVars(value, mvalue):
 if __name__ == "__main__":
     try:
         configFile = "config.ini"
-        if len(sys.argv) == 2:
+        if len(sys.argv) >= 2:
             configFile = sys.argv[1]
 
         config = configparser.ConfigParser()
@@ -262,6 +352,10 @@ if __name__ == "__main__":
         except:
             logger.info("Starte im Modus: Video")
         
+        if config.has_option('General','Volume'):
+            player.control_volume(config['General']['Volume'])
+
+        
         try:
             player.mqtt_user_pw_set(config['Connection']['Username'], config['Connection']['Password'])
         except:
@@ -272,7 +366,19 @@ if __name__ == "__main__":
             monitor = config['General']['Monitor']
             player.setMonitor(monitor)
         except:
-            logger.info("Verwende Monitor 0")        
+            logger.info("Verwende Monitor: " + str(monitor))     
+            
+        try:
+            t = replaceVars(config['Instance-Topics']['InstanceState'], monitor)
+            player.setInstanceStateTopic(t)
+        except:
+            logger.info("Topic für Instanz Status: " + t)
+            
+        try:
+            t = replaceVars(config['Instance-Topics']['PlayerState'], monitor)
+            player.setPlayerStateTopic(t)
+        except:
+            logger.info("Topic für Player Status: " + t)  
 
         section = "URL-Topics"
         if config.has_section(section):
@@ -291,6 +397,18 @@ if __name__ == "__main__":
             player.clearSeekTopics()       
             for x in dict(config.items(section)):
                 player.addSeekTopic(replaceVars(config[section][x], monitor))
+        
+        section = "Volume-Topics"
+        if config.has_section(section):
+            player.clearVolumeTopics()       
+            for x in dict(config.items(section)):
+                player.addVolumeTopic(replaceVars(config[section][x], monitor))
+                
+        section = "Speed-Topics"
+        if config.has_section(section):
+            player.clearSpeedTopics()       
+            for x in dict(config.items(section)):
+                player.addSpeedTopic(replaceVars(config[section][x], monitor))
         
         player.connect()
         

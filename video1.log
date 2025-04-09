@@ -1,0 +1,27 @@
+2025-04-09 13:33:52,103 - INFO - Verwende Configdatei: config_video_monitor1.ini
+2025-04-09 13:33:52,111 - INFO - Keine Zugangsdaten für MQTT-Broker gesetzt
+2025-04-09 13:33:52,115 - INFO - Verbindung zum MQTT Broker mqtt:1883 hergestellt
+2025-04-09 13:33:52,115 - INFO - Player gestartet und wartet auf MQTT-Nachrichten...
+2025-04-09 13:33:52,115 - INFO - Verbunden mit Ergebniscode Success
+2025-04-09 13:33:52,115 - INFO - Abonniere URL-Topics
+2025-04-09 13:33:52,115 - INFO -    dssystem/video/all/all/url
+2025-04-09 13:33:52,115 - INFO -    dssystem/video/escape-dev/all/url
+2025-04-09 13:33:52,115 - INFO -    dssystem/video/all/1/url
+2025-04-09 13:33:52,116 - INFO -    dssystem/video/escape-dev/1/url
+2025-04-09 13:33:52,116 - INFO - Abonniere Control-Topics
+2025-04-09 13:33:52,116 - INFO -    dssystem/video/all/all/control
+2025-04-09 13:33:52,116 - INFO -    dssystem/video/escape-dev/all/control
+2025-04-09 13:33:52,116 - INFO -    dssystem/video/all/1/control
+2025-04-09 13:33:52,116 - INFO -    dssystem/video/escape-dev/1/control
+2025-04-09 13:33:52,116 - INFO - Abonniere Seek-Topics
+2025-04-09 13:33:52,116 - INFO -    dssystem/video/all/all/seek
+2025-04-09 13:33:52,116 - INFO -    dssystem/video/escape-dev/all/seek
+2025-04-09 13:33:52,116 - INFO -    dssystem/video/all/1/seek
+2025-04-09 13:33:52,116 - INFO -    dssystem/video/escape-dev/1/seek
+2025-04-09 13:34:03,272 - INFO - Nachricht empfangen auf dssystem/video/all/all/url: https://pluto/vids/hans.mp4
+2025-04-09 13:34:03,272 - INFO - Mode: video
+2025-04-09 13:34:03,274 - INFO - Starte Wiedergabe von: https://pluto/vids/hans.mp4
+2025-04-09 13:34:49,738 - INFO - Nachricht empfangen auf dssystem/video/all/1/control: stop
+2025-04-09 13:34:49,802 - INFO - Wiedergabe gestoppt
+2025-04-09 13:59:34,322 - INFO - Nachricht empfangen auf dssystem/video/all/all/control: pause
+2025-04-09 13:59:34,322 - WARNING - Keine aktive Wiedergabe vorhanden
