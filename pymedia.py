@@ -37,8 +37,8 @@ class MQTTMediaPlayer:
         self.speed = 1
         self.broker_address = broker_address
         self.broker_port = broker_port
-        self.playerstate_topic = self.mode + "/" + socket.gethostname() + "/player_state"
-        self.instancestate_topic = self.mode + "/" + socket.gethostname() + "/instance_state"
+        self.playerstate_topic = self.mode + "/" + socket.gethostname() + "/state/player"
+        self.instancestate_topic = self.mode + "/" + socket.gethostname() + "/state/instance"
         self.url_topics = [ self.mode + "/" + socket.gethostname() + "/url", self.mode + "/all/url" ]
         self.control_topics = [ self.mode + "/" + socket.gethostname() + "/control", self.mode + "/all/control" ]
         self.seek_topics = [ self.mode + "/" + socket.gethostname() + "/seek", self.mode + "/all/seek" ]
