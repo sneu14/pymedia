@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import threading
+import validators
 
 # Logging einrichten
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -180,6 +181,9 @@ class MQTTMediaPlayer:
         self.client.publish(self.playerstate_topic, "stopped",0,True)
     
     def play_url(self, url):
+        if ( not validators.url(url) ):
+            logger.warning("Invalid URL: " + (url))
+            return
         """Audio-URL mit mpv abspielen"""
         try:
             # Beende jede laufende Wiedergabe
