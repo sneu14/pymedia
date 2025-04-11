@@ -323,7 +323,7 @@ class MQTTMediaPlayer:
         logger.info("MQTT-Verbindung getrennt")
 
 def replaceVars(value, mvalue):
-    return value.replace("___HOSTNAME___",socket.gethostname()).replace("___MONITOR___",mvalue)
+    return value.replace("___HOSTNAME___",socket.gethostname()).replace("___MONITOR___",str(mvalue))
 
 if __name__ == "__main__":
     try:
@@ -368,12 +368,14 @@ if __name__ == "__main__":
         except:
             logger.info("Verwende Monitor: " + str(monitor))     
             
+        t = 0
         try:
             t = replaceVars(config['Instance-Topics']['InstanceState'], monitor)
-            player.setInstanceStateTopic(t)
+            player.setInstanceStateTopic(str(t))
         except:
-            logger.info("Topic für Instanz Status: " + t)
-            
+            logger.info("Topic für Instanz Status: " + str(t))
+        
+        t = ""
         try:
             t = replaceVars(config['Instance-Topics']['PlayerState'], monitor)
             player.setPlayerStateTopic(t)
