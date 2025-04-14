@@ -121,11 +121,13 @@ class MQTTMediaPlayer:
         try:
             self.client.connect(self.broker_address, self.broker_port, 60)
             self.client.publish(self.instancestate_topic,"online",0,True)
-            self.client.publish(self.playerstate_topic,"stopped",0,True)
+            self.client.publish(self.playerstate_topic,"stop",0,True)
             self.client.loop_start()
             logger.info(f"Verbindung zum MQTT Broker {self.broker_address}:{self.broker_port} hergestellt")
+            return True
         except Exception as e:
             logger.error(f"Fehler beim Verbinden zum MQTT Broker: {e}")
+            return False
             
     def on_connect(self, client, userdata, flags, rc, properties=None):
         """Callback-Funktion bei erfolgreicher Verbindung"""
@@ -178,7 +180,7 @@ class MQTTMediaPlayer:
     def onPlayerExit(self):
         self.is_paused = False
         self.is_playing = False
-        self.client.publish(self.playerstate_topic, "stopped",0,True)
+        self.client.publish(self.playerstate_topic, "stop",0,True)
     
     def play_url(self, url):
         if ( not validators.url(url) ):
@@ -222,7 +224,7 @@ class MQTTMediaPlayer:
                 stderr=subprocess.PIPE
             )
             self.is_playing = True
-            self.client.publish(self.playerstate_topic, "playing",0,True)
+            self.client.publish(self.playerstate_topic, "play",0,True)
             
             
             time.sleep(0.5)
@@ -241,26 +243,31 @@ class MQTTMediaPlayer:
                 self._send_mpv_command({"command": ["set_property", "pause", True]})
                 self.is_playing = False
                 self.is_paused = True
-                self.client.publish(self.playerstate_topic, "paused",0,True)
+                self.client.publish(self.playerstate_topic, "pause",0,True)
                 logger.info("Wiedergabe pausiert")
         elif command == "play":
             if not self.is_playing:
                 self._send_mpv_command({"command": ["set_property", "pause", False]})
                 self.is_playing = True
                 self.is_paused = False
-                self.client.publish(self.playerstate_topic, "playing",0,True)
+                self.client.publish(self.playerstate_topic, "play",0,True)
                 logger.info("Wiedergabe fortgesetzt")
         elif command == "stop":
             self.stop_playback()
-            self.client.publish(self.playerstate_topic, "stopped",0,True)
+            self.client.publish(self.playerstate_topic, "stop",0,True)
         else:
             logger.warning(f"Unbekanntes Kommando: {command}")
             
     def control_seek(self, seconds):
-        """Zu Zeitstempel springen"""
+        mode = True
+        if ( seconds.startswith("+") or seconds.startswith("-")):
+            mode = False
         try:
             t = float(seconds)
-            self._send_mpv_command({"command": ["seek", t, "absolute"]})
+            if (mode):
+                self._send_mpv_command({"command": ["seek", t, "absolute"]})
+            else:
+                self._send_mpv_command({"command": ["seek", t, "relative"]})
         except:
             logger.warning("Zeitstempel für Seek ungültig: " + seconds + " Fließkommazahl erwartet")
 
@@ -316,7 +323,7 @@ class MQTTMediaPlayer:
                 self.current_process.kill()
             self.current_process = None
             self.is_playing = False
-            self.client.publish(self.playerstate_topic, "stopped",0,True)
+            self.client.publish(self.playerstate_topic, "stop",0,True)
             logger.info("Wiedergabe gestoppt")
     
     def disconnect(self):
@@ -416,7 +423,8 @@ if __name__ == "__main__":
             for x in dict(config.items(section)):
                 player.addSpeedTopic(replaceVars(config[section][x], monitor))
         
-        player.connect()
+        if ( not player.connect()):
+            exit(1)
         
         # Endlosschleife um das Programm am Laufen zu halten
         logger.info("Player gestartet und wartet auf MQTT-Nachrichten...")
