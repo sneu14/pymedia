@@ -253,7 +253,6 @@ class MQTTMediaPlayer:
                 logger.info("Wiedergabe fortgesetzt")
         elif command == "stop":
             self.stop_playback()
-            self.client.publish(self.playerstate_topic, "stop")
         else:
             logger.warning(f"Unbekanntes Kommando: {command}")
             
@@ -322,7 +321,6 @@ class MQTTMediaPlayer:
                 self.current_process.kill()
             self.current_process = None
             self.is_playing = False
-            self.client.publish(self.playerstate_topic, "stop")
             logger.info("Wiedergabe gestoppt")
     
     def disconnect(self):
