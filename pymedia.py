@@ -121,7 +121,6 @@ class MQTTMediaPlayer:
         try:
             self.client.connect(self.broker_address, self.broker_port, 60)
             self.client.publish(self.instancestate_topic,"online",0,True)
-            self.client.publish(self.playerstate_topic,"stop",0,True)
             self.client.loop_start()
             logger.info(f"Verbindung zum MQTT Broker {self.broker_address}:{self.broker_port} hergestellt")
             return True
@@ -180,7 +179,7 @@ class MQTTMediaPlayer:
     def onPlayerExit(self):
         self.is_paused = False
         self.is_playing = False
-        self.client.publish(self.playerstate_topic, "stop",0,True)
+        self.client.publish(self.playerstate_topic, "stop")
     
     def play_url(self, url):
         if ( not validators.url(url) ):
@@ -224,7 +223,7 @@ class MQTTMediaPlayer:
                 stderr=subprocess.PIPE
             )
             self.is_playing = True
-            self.client.publish(self.playerstate_topic, "play",0,True)
+            self.client.publish(self.playerstate_topic, "play")
             
             
             time.sleep(0.5)
@@ -243,18 +242,18 @@ class MQTTMediaPlayer:
                 self._send_mpv_command({"command": ["set_property", "pause", True]})
                 self.is_playing = False
                 self.is_paused = True
-                self.client.publish(self.playerstate_topic, "pause",0,True)
+                self.client.publish(self.playerstate_topic, "pause")
                 logger.info("Wiedergabe pausiert")
         elif command == "play":
             if not self.is_playing:
                 self._send_mpv_command({"command": ["set_property", "pause", False]})
                 self.is_playing = True
                 self.is_paused = False
-                self.client.publish(self.playerstate_topic, "play",0,True)
+                self.client.publish(self.playerstate_topic, "play")
                 logger.info("Wiedergabe fortgesetzt")
         elif command == "stop":
             self.stop_playback()
-            self.client.publish(self.playerstate_topic, "stop",0,True)
+            self.client.publish(self.playerstate_topic, "stop")
         else:
             logger.warning(f"Unbekanntes Kommando: {command}")
             
@@ -323,7 +322,7 @@ class MQTTMediaPlayer:
                 self.current_process.kill()
             self.current_process = None
             self.is_playing = False
-            self.client.publish(self.playerstate_topic, "stop",0,True)
+            self.client.publish(self.playerstate_topic, "stop")
             logger.info("Wiedergabe gestoppt")
     
     def disconnect(self):
