@@ -38,14 +38,7 @@ class MQTTMediaPlayer:
         self.speed = 1
         self.broker_address = broker_address
         self.broker_port = broker_port
-        self.playerstate_topic = self.mode + "/" + socket.gethostname() + "/state/player"
-        self.instancestate_topic = self.mode + "/" + socket.gethostname() + "/state/instance"
-        self.url_topics = [ self.mode + "/" + socket.gethostname() + "/url", self.mode + "/all/url" ]
-        self.url_topics_loop = [ self.mode + "/" + socket.gethostname() + "/url_loop", self.mode + "/all/url_loop" ]
-        self.control_topics = [ self.mode + "/" + socket.gethostname() + "/control", self.mode + "/all/control" ]
-        self.seek_topics = [ self.mode + "/" + socket.gethostname() + "/seek", self.mode + "/all/seek" ]
-        self.volume_topics = [ self.mode + "/" + socket.gethostname() + "/volume", self.mode + "/all/volume" ]
-        self.speed_topics = [ self.mode + "/" + socket.gethostname() + "/speed", self.mode + "/all/speed" ]
+        self._setDefaultTopics()
         
         # MQTT Client mit aktueller API-Version initialisieren
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
@@ -71,6 +64,7 @@ class MQTTMediaPlayer:
     def setMonitor(self, m):
         try:
             self.monitor = int(m)
+            self._setDefaultTopics()
         except:
             logger.warn("Ungültige Monitor ID: " + m)
             
@@ -178,7 +172,7 @@ class MQTTMediaPlayer:
         
         #if topic == self.url_topic1 or topic == self.url_topic2:
         if topic in self.url_topics:
-            self.play_url(payload,False)
+            self.play_url(payload)
         if topic in self.url_topics_loop:
             self.play_url(payload, True)
         if topic in self.control_topics:
@@ -195,7 +189,7 @@ class MQTTMediaPlayer:
         self.is_playing = False
         self.client.publish(self.playerstate_topic, "stop")
     
-    def play_url(self, url, loop):
+    def play_url(self, url, loop=False):
         if ( not validators.url(url) ):
             logger.warning("Invalid URL: " + (url))
             return
@@ -341,6 +335,16 @@ class MQTTMediaPlayer:
         #self.client.loop_stop()
         self.client.disconnect()
         logger.info("MQTT-Verbindung getrennt")
+
+    def _setDefaultTopics(self):
+        self.playerstate_topic = self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/state/player"
+        self.instancestate_topic = self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/state/instance"
+        self.url_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/url", self.mode + "/all/all/url" ]
+        self.url_topics_loop = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/url_loop", self.mode + "/all/all/url_loop" ]
+        self.control_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/control", self.mode + "/all/all/control" ]
+        self.seek_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/seek", self.mode + "/all/all/seek" ]
+        self.volume_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/volume", self.mode + "/all/all/volume" ]
+        self.speed_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/speed", self.mode + "/all/all/speed" ]
 
 def replaceVars(value, mvalue):
     return value.replace("___HOSTNAME___",socket.gethostname()).replace("___MONITOR___",str(mvalue))
