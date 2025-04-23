@@ -53,7 +53,10 @@ class MQTTMediaPlayer:
         self.current_process = None
         self.is_playing = False
         self.is_paused = False
-        self.current_url = None        
+        self.current_url = None
+        
+    def mqtt_setport(self, port):
+        self.broker_port = port     
         
     def setMode(self, mode):
         if mode == "audio" or mode == "video":
@@ -370,7 +373,7 @@ if __name__ == "__main__":
             BROKER_PORT = 1883
             
  
-        player = MQTTMediaPlayer(BROKER_ADDRESS, BROKER_PORT)
+        player = MQTTMediaPlayer(BROKER_ADDRESS)
         try:
             player.setMode(config['General']['Mode'])
         except:
@@ -384,6 +387,11 @@ if __name__ == "__main__":
             player.mqtt_user_pw_set(config['Connection']['Username'], config['Connection']['Password'])
         except:
             logger.info("Keine Zugangsdaten für MQTT-Broker gesetzt")
+            
+        try:
+            player.mqtt_setport(config['Connection']['Port'])
+        except:
+            logger.info("Verwende 1833 als MQTT-Port")
 
         monitor = 0
         try:
