@@ -41,6 +41,7 @@ class MQTTMediaPlayer:
         self.playerstate_topic = self.mode + "/" + socket.gethostname() + "/state/player"
         self.instancestate_topic = self.mode + "/" + socket.gethostname() + "/state/instance"
         self.url_topics = [ self.mode + "/" + socket.gethostname() + "/url", self.mode + "/all/url" ]
+        self.url_topics_loop = [ self.mode + "/" + socket.gethostname() + "/url_loop", self.mode + "/all/url_loop" ]
         self.control_topics = [ self.mode + "/" + socket.gethostname() + "/control", self.mode + "/all/control" ]
         self.seek_topics = [ self.mode + "/" + socket.gethostname() + "/seek", self.mode + "/all/seek" ]
         self.volume_topics = [ self.mode + "/" + socket.gethostname() + "/volume", self.mode + "/all/volume" ]
@@ -81,6 +82,12 @@ class MQTTMediaPlayer:
         
     def clearURLTopics(self):
         self.url_topics = []
+        
+    def addURLTopic_Loop(self, t):
+        self.url_topics_loop.append(t)
+    
+    def clearURLTopics_Loop(self):
+        self.url_topics_loop = []
         
     def addControlTopic(self, t):
         self.control_topics.append(t)
@@ -137,6 +144,11 @@ class MQTTMediaPlayer:
             client.subscribe(x)
             logger.info("   " + x)
             
+        logger.info("Abonniere URL-Topics_Loop")
+        for x in self.url_topics_loop:
+            client.subscribe(x)
+            logger.info("   " + x)
+            
         logger.info("Abonniere Control-Topics")
         for x in self.control_topics:
             client.subscribe(x)
@@ -166,7 +178,9 @@ class MQTTMediaPlayer:
         
         #if topic == self.url_topic1 or topic == self.url_topic2:
         if topic in self.url_topics:
-            self.play_url(payload)
+            self.play_url(payload,False)
+        if topic in self.url_topics_loop:
+            self.play_url(payload, True)
         if topic in self.control_topics:
             self.control_playback(payload)
         if topic in self.seek_topics:
@@ -181,7 +195,7 @@ class MQTTMediaPlayer:
         self.is_playing = False
         self.client.publish(self.playerstate_topic, "stop")
     
-    def play_url(self, url):
+    def play_url(self, url, loop):
         if ( not validators.url(url) ):
             logger.warning("Invalid URL: " + (url))
             return
@@ -200,20 +214,18 @@ class MQTTMediaPlayer:
                        "--fs",
                        f"--screen={self.monitor}",
                        "--no-osc",
-                       "--no-input-cursor",
-                       f"--volume={self.volume}",
-                       f"--speed={self.speed}",
-                       f"--input-ipc-server={self.ipc_socket}",
-                       url]
+                       "--no-input-cursor"]
 
             else:
                 cmd = ["mpv",
                        "--no-terminal",
-                       "--no-video",
-                       f"--volume={self.volume}",
-                       f"--speed={self.speed}",
-                       f"--input-ipc-server={self.ipc_socket}",
-                       url]
+                       "--no-video"]
+            if (loop):
+                cmd.append("--loop")
+            cmd.append(f"--volume={self.volume}")
+            cmd.append(f"--speed={self.speed}")
+            cmd.append(f"--input-ipc-server={self.ipc_socket}")
+            cmd.append(url)
 
             logger.info(f"Starte Wiedergabe von: {url}     {cmd}")
             #logger.info(cmd)
@@ -395,6 +407,12 @@ if __name__ == "__main__":
             player.clearURLTopics()    
             for x in dict(config.items(section)):
                 player.addURLTopic(replaceVars(config[section][x], monitor))
+                
+        section = "URL-Topics_Loop"
+        if config.has_section(section):
+            player.clearURLTopics_Loop()    
+            for x in dict(config.items(section)):
+                player.addURLTopic_Loop(replaceVars(config[section][x], monitor))
         
         section = "Control-Topics"
         if config.has_section(section):
