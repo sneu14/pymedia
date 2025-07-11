@@ -35,6 +35,7 @@ class MQTTMediaPlayer:
         self.mode = "video"
         self.monitor = 0
         self.volume = 100
+        self.latency = 0
         self.speed = 1
         self.broker_address = broker_address
         self.broker_port = broker_port
@@ -193,10 +194,9 @@ class MQTTMediaPlayer:
         self.client.publish(self.playerstate_topic, "stop")
     
     def play_url(self, url, loop=False):
-        if ( not validators.url(url) ):
-            logger.warning("Invalid URL: " + (url))
-            return
-        """Audio-URL mit mpv abspielen"""
+#        if ( not validators.url(url) or not url == "/dev/video0" ):
+#            logger.warning("Invalid URL: " + (url))
+#            return
         try:
             # Beende jede laufende Wiedergabe
             if self.current_process:
@@ -211,7 +211,11 @@ class MQTTMediaPlayer:
                        "--fs",
                        f"--screen={self.monitor}",
                        "--no-osc",
-                       "--no-input-cursor"]
+                       "--no-input-cursor",
+                       f"--audio-latency={self.latency}"]
+                if ( url.startswith("/dev/video")):
+                    cmd.append("--untimed")
+                    cmd.append("--profile=low-latency")
 
             else:
                 cmd = ["mpv",
@@ -219,6 +223,7 @@ class MQTTMediaPlayer:
                        "--no-video"]
             if (loop):
                 cmd.append("--loop")
+
             cmd.append(f"--volume={self.volume}")
             cmd.append(f"--speed={self.speed}")
             cmd.append(f"--input-ipc-server={self.ipc_socket}")
@@ -287,6 +292,14 @@ class MQTTMediaPlayer:
             self.volume = volume
         except:
             logger.warning("Wert für Volume ungültig: " + volume + " Fließkommazahl erwartet")
+            
+    def control_latency(self, latency):
+        """Set Audio Latency"""
+        try:
+            t = float(latency)
+            self.latency = latency
+        except:
+            logger.warning("Wert für AudioLatency ungültig: " + volume + " Fließkommazahl erwartet")
             
     def control_speed(self, speed):
         """Geschwindigkeit setzen"""
@@ -381,8 +394,10 @@ if __name__ == "__main__":
         
         if config.has_option('General','Volume'):
             player.control_volume(config['General']['Volume'])
+            
+        if config.has_option('General','AudioLatency'):
+            player.control_latency(config['General']['AudioLatency'])
 
-        
         try:
             player.mqtt_user_pw_set(config['Connection']['Username'], config['Connection']['Password'])
         except:
