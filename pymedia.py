@@ -119,6 +119,10 @@ class MQTTMediaPlayer:
         self.instancestate_topic = t
         logger.info("Topic für Instanzstatus: " + t)
         self.client.will_set(self.instancestate_topic, payload="offline",qos=0, retain=True)
+        
+    def setVolumeStateTopic(self, t):
+        self.volumestate_topic = t
+        logger.info("Topic für Volumestatus: " + t)
  
     
     def connect(self):
@@ -126,6 +130,7 @@ class MQTTMediaPlayer:
         try:
             self.client.connect(self.broker_address, self.broker_port, 60)
             self.client.publish(self.instancestate_topic,"online",0,True)
+            self.client.publish(self.volumestate_topic,str(self.volume))
             self.client.loop_start()
             logger.info(f"Verbindung zum MQTT Broker {self.broker_address}:{self.broker_port} hergestellt")
             return True
@@ -290,6 +295,7 @@ class MQTTMediaPlayer:
             if self.is_playing or self.is_paused:
                 self._send_mpv_command({"command": ["set_property", "volume", volume]})
             self.volume = volume
+            self.client.publish(self.volumestate_topic, str(volume))
         except:
             logger.warning("Wert für Volume ungültig: " + volume + " Fließkommazahl erwartet")
             
@@ -355,6 +361,7 @@ class MQTTMediaPlayer:
     def _setDefaultTopics(self):
         self.playerstate_topic = self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/state/player"
         self.instancestate_topic = self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/state/instance"
+        self.volumestate_topic = self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/state/volume"
         self.url_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/url", self.mode + "/all/all/url" ]
         self.url_topics_loop = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/url_loop", self.mode + "/all/all/url_loop" ]
         self.control_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/control", self.mode + "/all/all/control" ]
@@ -427,7 +434,14 @@ if __name__ == "__main__":
             t = replaceVars(config['Instance-Topics']['PlayerState'], monitor)
             player.setPlayerStateTopic(t)
         except:
-            logger.info("Topic für Player Status: " + t)  
+            logger.info("Topic für Player Status: " + t)
+            
+        t = ""
+        try:
+            t = replaceVars(config['Instance-Topics']['VolumeState'], monitor)
+            player.setVolumeStateTopic(t)
+        except:
+            logger.info("Topic für Volume Status: " + t)  
 
         section = "URL-Topics"
         if config.has_section(section):
