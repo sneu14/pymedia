@@ -35,7 +35,7 @@ class MQTTMediaPlayer:
         self.mode = "video"
         self.monitor = 0
         self.volume = 100
-        self.latency = 0
+        self.audio_delay = 0
         self.speed = 1
         self.broker_address = broker_address
         self.broker_port = broker_port
@@ -128,7 +128,7 @@ class MQTTMediaPlayer:
     def connect(self):
         """Verbindung zum MQTT Broker herstellen"""
         try:
-            self.client.connect(self.broker_address, self.broker_port, 60)
+            self.client.connect(self.broker_address, int(self.broker_port), 60)
             self.client.publish(self.instancestate_topic,"online",0,True)
             self.client.publish(self.volumestate_topic,str(self.volume))
             self.client.loop_start()
@@ -217,7 +217,7 @@ class MQTTMediaPlayer:
                        f"--screen={self.monitor}",
                        "--no-osc",
                        "--no-input-cursor",
-                       f"--audio-latency={self.latency}"]
+                       f"--audio-delay={self.audio_delay}"]
                 if ( url.startswith("/dev/video")):
                     cmd.append("--untimed")
                     cmd.append("--profile=low-latency")
@@ -299,13 +299,13 @@ class MQTTMediaPlayer:
         except:
             logger.warning("Wert für Volume ungültig: " + volume + " Fließkommazahl erwartet")
             
-    def control_latency(self, latency):
-        """Set Audio Latency"""
+    def control_audio_delay(self, audio_delay):
+        """Set Audio Delay"""
         try:
-            t = float(latency)
-            self.latency = latency
+            t = float(audio_delay)
+            self.audio_delay = audio_delay
         except:
-            logger.warning("Wert für AudioLatency ungültig: " + volume + " Fließkommazahl erwartet")
+            logger.warning("Wert für Audio Delay ungültig: " + audio_delay + " Fließkommazahl erwartet")
             
     def control_speed(self, speed):
         """Geschwindigkeit setzen"""
@@ -402,8 +402,8 @@ if __name__ == "__main__":
         if config.has_option('General','Volume'):
             player.control_volume(config['General']['Volume'])
             
-        if config.has_option('General','AudioLatency'):
-            player.control_latency(config['General']['AudioLatency'])
+        if config.has_option('General','AudioDelay'):
+            player.control_audio_delay(config['General']['AudioDelay'])
 
         try:
             player.mqtt_user_pw_set(config['Connection']['Username'], config['Connection']['Password'])
