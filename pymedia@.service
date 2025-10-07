@@ -5,10 +5,7 @@ StartLimitIntervalSec=0
 [Service]
 WorkingDirectory=/home/kiosk-user/pymedia
 ExecStart=/home/kiosk-user/pymedia/start.sh %i.conf
-User=kiosk-user
 Restart=always
-After=network-online.target
-Wants=network-online.target
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
