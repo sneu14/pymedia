@@ -253,30 +253,30 @@ class MQTTMediaPlayer:
     def control_playback(self, command):
         """Steuerung der Wiedergabe (pause/stop)"""
         if not self.current_process:
-            logger.warning("Keine aktive Wiedergabe vorhanden")
-            return
-            
-        if command == "pause":
-            if self.is_playing:
-                # Pause an mpv senden (SIGTSTP)
-                self._send_mpv_command({"command": ["set_property", "pause", True]})
-                self.is_playing = False
-                self.is_paused = True
-                self.client.publish(self.playerstate_topic, "pause")
-                logger.info("Wiedergabe pausiert")
-        elif command == "play":
-            if self.is_paused == True:
-                self._send_mpv_command({"command": ["set_property", "pause", False]})
-                self.is_playing = True
-                self.is_paused = False
-                self.client.publish(self.playerstate_topic, "play")
-                logger.info("Wiedergabe fortgesetzt")
-            else:
-                play_url(self.current_url)
-        elif command == "stop":
-            self.stop_playback()
+            if command == "play":
+                self.play_url(self.current_url)
         else:
-            logger.warning(f"Unbekanntes Kommando: {command}")
+            
+            if command == "pause":
+                if self.is_playing:
+                    # Pause an mpv senden (SIGTSTP)
+                    self._send_mpv_command({"command": ["set_property", "pause", True]})
+                    self.is_playing = False
+                    self.is_paused = True
+                    self.client.publish(self.playerstate_topic, "pause")
+                    logger.info("Wiedergabe pausiert")
+            elif command == "play":
+                if self.is_paused == True:
+                    self._send_mpv_command({"command": ["set_property", "pause", False]})
+                    self.is_playing = True
+                    self.is_paused = False
+                    self.client.publish(self.playerstate_topic, "play")
+                    logger.info("Wiedergabe fortgesetzt")
+
+            elif command == "stop":
+                self.stop_playback()
+            else:
+                logger.warning(f"Unbekanntes Kommando: {command}")
             
     def control_seek(self, seconds):
         mode = True
