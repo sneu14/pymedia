@@ -130,7 +130,8 @@ class MQTTMediaPlayer:
         try:
             self.client.connect(self.broker_address, int(self.broker_port), 60)
             self.client.publish(self.instancestate_topic,"online",0,True)
-            self.client.publish(self.volumestate_topic,str(self.volume))
+            self.client.publish(self.playerstate_topic,"stop",0,True)
+            self.client.publish(self.volumestate_topic,str(self.volume),0, True)
             self.client.loop_start()
             logger.info(f"Verbindung zum MQTT Broker {self.broker_address}:{self.broker_port} hergestellt")
             return True
