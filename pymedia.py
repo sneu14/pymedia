@@ -253,7 +253,7 @@ class MQTTMediaPlayer:
     def control_playback(self, command):
         """Steuerung der Wiedergabe (pause/stop)"""
         if not self.current_process:
-            if command == "play":
+            if command == "play" and self.current_url:
                 self.play_url(self.current_url)
         else:
             
