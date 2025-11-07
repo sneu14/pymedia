@@ -265,12 +265,14 @@ class MQTTMediaPlayer:
                 self.client.publish(self.playerstate_topic, "pause")
                 logger.info("Wiedergabe pausiert")
         elif command == "play":
-            if not self.is_playing:
+            if self.is_paused == True:
                 self._send_mpv_command({"command": ["set_property", "pause", False]})
                 self.is_playing = True
                 self.is_paused = False
                 self.client.publish(self.playerstate_topic, "play")
                 logger.info("Wiedergabe fortgesetzt")
+            else:
+                play_url(self.current_url)
         elif command == "stop":
             self.stop_playback()
         else:
