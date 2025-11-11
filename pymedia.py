@@ -62,66 +62,65 @@ class MQTTMediaPlayer:
         if mode == "audio" or mode == "video":
             self.mode = mode
         else:
-            logger.warn("Ungültiger Betriebsmodus. Nur Audio oder Video möglich")
+            logger.warning("Ungültiger Betriebsmodus. Nur Audio oder Video möglich")
         
     def setMonitor(self, m):
         try:
             self.monitor = int(m)
             self._setDefaultTopics()
         except:
-            logger.warn("Ungültige Monitor ID: " + m)
+            logger.warning("Ungültige Monitor ID: " + m)
             
     def mqtt_user_pw_set(self, u,p):
         self.client.username_pw_set(u,p)
         
     def addURLTopic(self, t):
-        self.url_topics.append(t)
-        
+        self.url_topics.append(self._replaceVars(t, self.monitor))
     def clearURLTopics(self):
         self.url_topics = []
         
     def addURLTopic_Loop(self, t):
-        self.url_topics_loop.append(t)
+        self.url_topics_loop.append(self._replaceVars(t, self.monitor))
     
     def clearURLTopics_Loop(self):
         self.url_topics_loop = []
         
     def addControlTopic(self, t):
-        self.control_topics.append(t)
+        self.control_topics.append(self._replaceVars(t, self.monitor))
     
     def clearControlTopics(self):
         self.control_topics = []
 
     def addSeekTopic(self, t):
-        self.seek_topics.append(t)
+        self.seek_topics.append(self._replaceVars(t, self.monitor))
         
     def clearSeekTopics(self):
         self.seek_topics = []
         
     def addVolumeTopic(self, t):
-        self.volume_topics.append(t)
+        self.volume_topics.append(self._replaceVars(t, self.monitor))
 
     def clearVolumeTopics(self):
         self.volume_topics = []
         
     def addSpeedTopic(self, t):
-        self.speed_topics.append(t)
+        self.speed_topics.append(self._replaceVars(t, self.monitor))
 
     def clearSpeedTopics(self):
         self.speed_topics = []
         
     def setPlayerStateTopic(self, t):
-        self.playerstate_topic = t
-        logger.info("Topic für Playerstatus: " + t)
+        self.playerstate_topic = self._replaceVars(t, self.monitor)
+        logger.info("Topic für Playerstatus: " + self.playerstate_topic)
  
     def setInstanceStateTopic(self, t):
-        self.instancestate_topic = t
-        logger.info("Topic für Instanzstatus: " + t)
+        self.instancestate_topic = self._replaceVars(t, self.monitor)
+        logger.info("Topic für Instanzstatus: " + self.instancestate_topic)
         self.client.will_set(self.instancestate_topic, payload="offline",qos=0, retain=True)
         
     def setVolumeStateTopic(self, t):
-        self.volumestate_topic = t
-        logger.info("Topic für Volumestatus: " + t)
+        self.volumestate_topic = self._replaceVars(t, self.monitor)
+        logger.info("Topic für Volumestatus: " + self.volumestate_topic)
  
     
     def connect(self):
@@ -207,8 +206,10 @@ class MQTTMediaPlayer:
             if self.current_process:
                 self.stop_playback()
             
+            # Variablen im Dateipfad ersetzen
+            logger.info("Ersetze Variablen in URL: " + url + " Monitor: " + str(self.monitor) + " Replaced URL: ")
+            self.current_url = self._replaceVars(url, str(self.monitor))
             # Starte die neue Wiedergabe mit mpv (auch als Stream)
-            self.current_url = url
             logger.info("Mode: " + self.mode)
             cmd = ""
             if self.mode == "video":
@@ -218,7 +219,7 @@ class MQTTMediaPlayer:
                        "--no-osc",
                        "--no-input-cursor",
                        f"--audio-delay={self.audio_delay}"]
-                if ( url.startswith("/dev/video")):
+                if ( self.current_url.startswith("/dev/video")):
                     cmd.append("--untimed")
                     cmd.append("--profile=low-latency")
 
@@ -232,9 +233,9 @@ class MQTTMediaPlayer:
             cmd.append(f"--volume={self.volume}")
             cmd.append(f"--speed={self.speed}")
             cmd.append(f"--input-ipc-server={self.ipc_socket}")
-            cmd.append(url)
+            cmd.append(self.current_url)
 
-            logger.info(f"Starte Wiedergabe von: {url}     {cmd}")
+            logger.info(f"Starte Wiedergabe von: {self.current_url}     {cmd}")
             #logger.info(cmd)
             self.current_process = popenAndCall(self.onPlayerExit,
                 cmd, 
@@ -247,7 +248,7 @@ class MQTTMediaPlayer:
             
             time.sleep(0.5)
         except Exception as e:
-            logger.error(f"Fehler beim Abspielen der URL {url}: {e}")
+            logger.error(f"Fehler beim Abspielen der URL {self.current_url}: {e}")
     
     def control_playback(self, command):
         """Steuerung der Wiedergabe (pause/stop)"""
@@ -371,8 +372,8 @@ class MQTTMediaPlayer:
         self.volume_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/volume", self.mode + "/all/all/volume" ]
         self.speed_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/speed", self.mode + "/all/all/speed" ]
 
-def replaceVars(value, mvalue):
-    return value.replace("___HOSTNAME___",socket.gethostname()).replace("___MONITOR___",str(mvalue))
+    def _replaceVars(self, value, mvalue):
+        return value.replace("___HOSTNAME___",socket.gethostname()).replace("___MONITOR___",str(mvalue))
 
 if __name__ == "__main__":
     try:
@@ -426,21 +427,21 @@ if __name__ == "__main__":
             
         t = 0
         try:
-            t = replaceVars(config['Instance-Topics']['InstanceState'], monitor)
+            t = config['Instance-Topics']['InstanceState']
             player.setInstanceStateTopic(str(t))
         except:
             logger.info("Topic für Instanz Status: " + str(t))
         
         t = ""
         try:
-            t = replaceVars(config['Instance-Topics']['PlayerState'], monitor)
+            t = config['Instance-Topics']['PlayerState']
             player.setPlayerStateTopic(t)
         except:
             logger.info("Topic für Player Status: " + t)
             
         t = ""
         try:
-            t = replaceVars(config['Instance-Topics']['VolumeState'], monitor)
+            t = config['Instance-Topics']['VolumeState']
             player.setVolumeStateTopic(t)
         except:
             logger.info("Topic für Volume Status: " + t)  
@@ -449,37 +450,37 @@ if __name__ == "__main__":
         if config.has_section(section):
             player.clearURLTopics()    
             for x in dict(config.items(section)):
-                player.addURLTopic(replaceVars(config[section][x], monitor))
+                player.addURLTopic(config[section][x])
                 
         section = "URL-Topics_Loop"
         if config.has_section(section):
             player.clearURLTopics_Loop()    
             for x in dict(config.items(section)):
-                player.addURLTopic_Loop(replaceVars(config[section][x], monitor))
+                player.addURLTopic_Loop(config[section][x])
         
         section = "Control-Topics"
         if config.has_section(section):
             player.clearControlTopics()      
             for x in dict(config.items(section)):
-                player.addControlTopic(replaceVars(config[section][x], monitor))
+                player.addControlTopic(config[section][x])
         
         section = "Seek-Topics"
         if config.has_section(section):
             player.clearSeekTopics()       
             for x in dict(config.items(section)):
-                player.addSeekTopic(replaceVars(config[section][x], monitor))
+                player.addSeekTopic(config[section][x])
         
         section = "Volume-Topics"
         if config.has_section(section):
             player.clearVolumeTopics()       
             for x in dict(config.items(section)):
-                player.addVolumeTopic(replaceVars(config[section][x], monitor))
+                player.addVolumeTopic(config[section][x])
                 
         section = "Speed-Topics"
         if config.has_section(section):
             player.clearSpeedTopics()       
             for x in dict(config.items(section)):
-                player.addSpeedTopic(replaceVars(config[section][x], monitor))
+                player.addSpeedTopic(config[section][x])
         
         if ( not player.connect()):
             exit(1)
