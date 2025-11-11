@@ -207,10 +207,8 @@ class MQTTMediaPlayer:
                 self.stop_playback()
             
             # Variablen im Dateipfad ersetzen
-            logger.info("Ersetze Variablen in URL: " + url + " Monitor: " + str(self.monitor) + " Replaced URL: ")
             self.current_url = self._replaceVars(url, str(self.monitor))
             # Starte die neue Wiedergabe mit mpv (auch als Stream)
-            logger.info("Mode: " + self.mode)
             cmd = ""
             if self.mode == "video":
                 cmd = ["mpv", "--no-terminal",
