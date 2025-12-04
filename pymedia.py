@@ -121,6 +121,10 @@ class MQTTMediaPlayer:
     def setVolumeStateTopic(self, t):
         self.volumestate_topic = self._replaceVars(t, self.monitor)
         logger.info("Topic für Volumestatus: " + self.volumestate_topic)
+        
+    def setURLStateTopic(self, t):
+        self.urlstate_topic = self._replaceVars(t, self.monitor)
+        logger.info("Topic für URLstatus: " + self.urlstate_topic)
  
     
     def connect(self):
@@ -242,6 +246,7 @@ class MQTTMediaPlayer:
             )
             self.is_playing = True
             self.client.publish(self.playerstate_topic, "play")
+            self.client.publish(self.urlstate_topic, self.current_url)
             
             
             time.sleep(0.5)
@@ -363,6 +368,7 @@ class MQTTMediaPlayer:
         self.playerstate_topic = self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/state/player"
         self.instancestate_topic = self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/state/instance"
         self.volumestate_topic = self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/state/volume"
+        self.urlstate_topic = self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/state/url"
         self.url_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/url", self.mode + "/all/all/url" ]
         self.url_topics_loop = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/url_loop", self.mode + "/all/all/url_loop" ]
         self.control_topics = [ self.mode + "/" + socket.gethostname() + "/" + str(self.monitor) + "/control", self.mode + "/all/all/control" ]
@@ -442,7 +448,14 @@ if __name__ == "__main__":
             t = config['Instance-Topics']['VolumeState']
             player.setVolumeStateTopic(t)
         except:
-            logger.info("Topic für Volume Status: " + t)  
+            logger.info("Topic für Volume Status: " + t)
+            
+        t = ""
+        try:
+            t = config['Instance-Topics']['URLState']
+            player.setURLStateTopic(t)
+        except:
+            logger.info("Topic für URL Status: " + t)  
 
         section = "URL-Topics"
         if config.has_section(section):
